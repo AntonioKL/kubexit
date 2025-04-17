@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-        "strconv"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/karlkfi/kubexit/pkg/kubernetes"
@@ -118,30 +117,6 @@ func main() {
 		log.Printf("Namespace: %s\n", namespace)
 	}
 
-	// Check if we should restart on successful exit (code 0)
-	restartOnSuccess := false
-	restartOnSuccessStr := os.Getenv("KUBEXIT_RESTART_ON_SUCCESS")
-	if restartOnSuccessStr != "" {
-		restartOnSuccess, err = strconv.ParseBool(restartOnSuccessStr)
-		if err != nil {
-			log.Printf("Error: failed to parse KUBEXIT_RESTART_ON_SUCCESS: %v\n", err)
-			os.Exit(2)
-		}
-	}
-	log.Printf("Restart On Success: %v\n", restartOnSuccess)
-
-	// Maximum number of restart attempts
-	maxRestarts := 5
-	maxRestartsStr := os.Getenv("KUBEXIT_MAX_RESTARTS")
-	if maxRestartsStr != "" {
-		maxRestarts, err = strconv.Atoi(maxRestartsStr)
-		if err != nil {
-			log.Printf("Error: failed to parse KUBEXIT_MAX_RESTARTS: %v\n", err)
-			os.Exit(2)
-		}
-	}
-	log.Printf("Max Restarts: %d\n", maxRestarts)
-
 	child := supervisor.New(args[0], args[1:]...)
 
 	// watch for death deps early, so they can interrupt waiting for birth deps
@@ -183,30 +158,7 @@ func main() {
 		fatalf(child, ts, "Error: %v\n", err)
 	}
 
-	// Handle process execution with potential restarts
-	restartCount := 0
-	var code int
-	
-	for {
-		code = waitForChildExit(child)
-		
-		// If the process exited successfully (code 0) and we want to restart on success
-		if code == 0 && restartOnSuccess && restartCount < maxRestarts {
-			restartCount++
-			log.Printf("Process exited with code 0. Restarting (%d/%d)...\n", restartCount, maxRestarts)
-			
-			// Create a new supervisor for the restart
-			child = supervisor.New(args[0], args[1:]...)
-			err = child.Start()
-			if err != nil {
-				log.Printf("Error: failed to restart process: %v\n", err)
-				break
-			}
-		} else {
-			// Exit the loop if we don't need to restart or have reached max restarts
-			break
-		}
-	}
+	code := waitForChildExit(child)
 
 	err = ts.RecordDeath(code)
 	if err != nil {
@@ -214,15 +166,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	customExitCodeStr := os.Getenv("KUBEXIT_CUSTOM_EXIT_CODE")
-	if customExitCodeStr != "" {
-		customExitCode, err := strconv.Atoi(customExitCodeStr)
-		if err != nil {
-			log.Printf("Error: failed to get custom exit code: %v\n", err)
+	mainExitCodeStr := os.Getenv("KUBEXIT_MAIN_EXIT_CODE")
+	if mainExitCodeStr == "true" {
+		// Exit with 1 if code is not 0 or if there's an error
+		if code != 0 || err != nil {
+			log.Printf("main proccess was not successful, exiting with code 1")
 			os.Exit(1)
 		}
-		log.Printf("Using custom exit code: %d\n", customExitCode)
-		os.Exit(customExitCode)
 	}
 
 	os.Exit(code)
