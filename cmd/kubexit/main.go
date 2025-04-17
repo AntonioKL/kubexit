@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-        "strconv"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/karlkfi/kubexit/pkg/kubernetes"
