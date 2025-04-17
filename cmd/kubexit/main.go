@@ -166,6 +166,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	customExitCodeStr := os.Getenv("KUBEXIT_CUSTOM_EXIT_CODE")
+	if customExitCodeStr != "" {
+		customExitCode, err := strconv.Atoi(customExitCodeStr)
+		if err != nil {
+			log.Printf("Error: failed to get custom exit code: %v\n", err)
+			os.Exit(1)
+		}
+		log.Printf("Using custom exit code: %d\n", customExitCode)
+		os.Exit(customExitCode)
+	}
+
 	os.Exit(code)
 }
 

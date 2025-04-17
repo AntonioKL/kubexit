@@ -60,6 +60,7 @@ Tombstone:
 Death Dependency:
 - `KUBEXIT_DEATH_DEPS` - The name(s) of this process death dependencies, comma separated.
 - `KUBEXIT_GRACE_PERIOD` - Duration to wait for this process to exit after a graceful termination, before being killed. Default: `30s`.
+- `KUBEXIT_CUSTOM_EXIT_CODE` - An integer value that will be used as the exit code when kubexit terminates, regardless of the supervised process's exit code.
 
 Birth Dependency:
 - `KUBEXIT_BIRTH_DEPS` - The name(s) of this process birth dependencies, comma separated.
