@@ -161,6 +161,11 @@ func main() {
 
 	code := waitForChildExit(child)
 
+	// If the child process exited with a non-zero exit code, use 42 as the exit code - We still want to record the death, but we don't want to exit with the child's exit code.
+	if code == -1 {
+		code = 42
+	}
+
 	err = ts.RecordDeath(code)
 	if err != nil {
 		log.Printf("Error: %v\n", err)
