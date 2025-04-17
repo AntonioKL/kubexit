@@ -118,6 +118,30 @@ func main() {
 		log.Printf("Namespace: %s\n", namespace)
 	}
 
+	// Check if we should restart on successful exit (code 0)
+	restartOnSuccess := false
+	restartOnSuccessStr := os.Getenv("KUBEXIT_RESTART_ON_SUCCESS")
+	if restartOnSuccessStr != "" {
+		restartOnSuccess, err = strconv.ParseBool(restartOnSuccessStr)
+		if err != nil {
+			log.Printf("Error: failed to parse KUBEXIT_RESTART_ON_SUCCESS: %v\n", err)
+			os.Exit(2)
+		}
+	}
+	log.Printf("Restart On Success: %v\n", restartOnSuccess)
+
+	// Maximum number of restart attempts
+	maxRestarts := 5
+	maxRestartsStr := os.Getenv("KUBEXIT_MAX_RESTARTS")
+	if maxRestartsStr != "" {
+		maxRestarts, err = strconv.Atoi(maxRestartsStr)
+		if err != nil {
+			log.Printf("Error: failed to parse KUBEXIT_MAX_RESTARTS: %v\n", err)
+			os.Exit(2)
+		}
+	}
+	log.Printf("Max Restarts: %d\n", maxRestarts)
+
 	child := supervisor.New(args[0], args[1:]...)
 
 	// watch for death deps early, so they can interrupt waiting for birth deps
@@ -159,11 +183,29 @@ func main() {
 		fatalf(child, ts, "Error: %v\n", err)
 	}
 
-	code := waitForChildExit(child)
-
-	// If the child process exited with a non-zero exit code, use 42 as the exit code - We still want to record the death, but we don't want to exit with the child's exit code.
-	if code == -1 {
-		code = 42
+	// Handle process execution with potential restarts
+	restartCount := 0
+	var code int
+	
+	for {
+		code = waitForChildExit(child)
+		
+		// If the process exited successfully (code 0) and we want to restart on success
+		if code == 0 && restartOnSuccess && restartCount < maxRestarts {
+			restartCount++
+			log.Printf("Process exited with code 0. Restarting (%d/%d)...\n", restartCount, maxRestarts)
+			
+			// Create a new supervisor for the restart
+			child = supervisor.New(args[0], args[1:]...)
+			err = child.Start()
+			if err != nil {
+				log.Printf("Error: failed to restart process: %v\n", err)
+				break
+			}
+		} else {
+			// Exit the loop if we don't need to restart or have reached max restarts
+			break
+		}
 	}
 
 	err = ts.RecordDeath(code)
